@@ -1,0 +1,273 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: colleagues
+    description: Colleague directory
+  - name: kudos
+    description: Public kudos and reporting
+  - name: dashboard
+    description: Dashboard summary
+  - name: moderation
+    description: Administrator moderation
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /colleagues:
+    get:
+      operationId: listColleagues
+      tags: [colleagues]
+      summary: List searchable colleagues
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            default: ""
+      responses:
+        "200":
+          description: Colleagues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Colleague"
+  /kudos:
+    get:
+      operationId: listKudos
+      tags: [kudos]
+      summary: List visible recent kudos
+      responses:
+        "200":
+          description: Visible recent kudos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Kudo"
+    post:
+      operationId: createKudo
+      tags: [kudos]
+      summary: Submit appreciation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KudoInput"
+      responses:
+        "201":
+          description: Created kudo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Kudo"
+        "400":
+          description: Invalid kudo
+  /kudos/{id}/report:
+    post:
+      operationId: reportKudo
+      tags: [kudos]
+      summary: Report a kudo for review
+      parameters:
+        - $ref: "#/components/parameters/KudoId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "200":
+          description: Reported kudo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Kudo"
+        "404":
+          description: Kudo not found
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard metrics
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /admin/kudos:
+    get:
+      operationId: listModerationKudos
+      tags: [moderation]
+      summary: List moderation queue
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ModerationStatus"
+      responses:
+        "200":
+          description: Moderation queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Kudo"
+  /admin/kudos/{id}/moderation:
+    patch:
+      operationId: moderateKudo
+      tags: [moderation]
+      summary: Approve or remove a reported kudo
+      parameters:
+        - $ref: "#/components/parameters/KudoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModerationInput"
+      responses:
+        "200":
+          description: Moderated kudo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Kudo"
+        "404":
+          description: Kudo not found
+  /admin/kudos/{id}:
+    delete:
+      operationId: deleteKudo
+      tags: [moderation]
+      summary: Permanently delete a kudo
+      parameters:
+        - $ref: "#/components/parameters/KudoId"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Kudo not found
+components:
+  parameters:
+    KudoId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Colleague:
+      type: object
+      required: [id, name, role, initials]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          type: string
+        initials:
+          type: string
+    Kudo:
+      type: object
+      required: [id, senderName, recipientId, recipientName, recipientInitials, message, status, isVisible, createdAt]
+      properties:
+        id:
+          type: integer
+        senderName:
+          type: string
+        recipientId:
+          type: integer
+        recipientName:
+          type: string
+        recipientInitials:
+          type: string
+        message:
+          type: string
+        status:
+          $ref: "#/components/schemas/ModerationStatus"
+        isVisible:
+          type: boolean
+        reportReason:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+    KudoInput:
+      type: object
+      required: [recipientId, message]
+      properties:
+        recipientId:
+          type: integer
+          minimum: 1
+        message:
+          type: string
+          minLength: 1
+          maxLength: 280
+        senderName:
+          type: string
+          minLength: 1
+          maxLength: 80
+          default: You
+    ReportInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 280
+    ModerationStatus:
+      type: string
+      enum: [needs_review, approved, removed]
+    ModerationInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, removed]
+    DashboardSummary:
+      type: object
+      required: [totalKudos, kudosThisWeek, peopleRecognized]
+      properties:
+        totalKudos:
+          type: integer
+        kudosThisWeek:
+          type: integer
+        peopleRecognized:
+          type: integer
+
